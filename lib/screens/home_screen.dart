@@ -249,7 +249,15 @@ class _HomeScreenState extends State<HomeScreen> {
           icon: Icons.people,
           label: 'Data\nPelanggan',
           color: Colors.orange,
-          onTap: () {},
+          onTap: () async {
+            await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const CustomerListScreen(),
+              ),
+            );
+            _refreshSummary();
+          },
         ),
         _menuItem(
           icon: Icons.settings,

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../database/database_helper.dart';
 
-
 class TransactionFormPopup extends StatefulWidget {
   const TransactionFormPopup({super.key});
 
@@ -11,16 +10,14 @@ class TransactionFormPopup extends StatefulWidget {
 
 class _TransactionFormPopupState extends State<TransactionFormPopup> {
   final _formKey = GlobalKey<FormState>();
-
   List<Map<String, dynamic>> _suggestions = [];
-  bool _isExistingCustomer = false;
   OverlayEntry? _overlayEntry;
   final LayerLink _layerLink = LayerLink();
-
 
   String? _selectedType;
   int _price = 0;
   int _status = 0;
+  int? _selectedCustomerId;
 
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _plateController = TextEditingController();
@@ -41,8 +38,7 @@ class _TransactionFormPopupState extends State<TransactionFormPopup> {
       return;
     }
 
-    final result =
-        await DatabaseHelper.instance.searchCustomerByName(value);
+    final result = await DatabaseHelper.instance.searchCustomerByName(value);
 
     if (!mounted) return;
 
@@ -50,7 +46,11 @@ class _TransactionFormPopupState extends State<TransactionFormPopup> {
       _suggestions = result;
     });
 
-    _showOverlay();
+    if (_suggestions.isNotEmpty) {
+      _showOverlay();
+    } else {
+      _removeOverlay();
+    }
   }
 
   void _showOverlay() {
@@ -69,13 +69,13 @@ class _TransactionFormPopupState extends State<TransactionFormPopup> {
             child: ListView(
               padding: EdgeInsets.zero,
               shrinkWrap: true,
-              children: _suggestions.map((item) {
+              children: _suggestions.map((customer) {
                 return ListTile(
-                  title: Text(item['name']),
+                  title: Text(customer['name']),
                   subtitle: Text(
-                    '${item['vehicle_type']} • ${item['plate_number'] ?? '-'}',
+                    '${customer['vehicle_type']} • ${customer['plate_number'] ?? '-'}',
                   ),
-                  onTap: () => _selectExistingCustomer(item),
+                  onTap: () => _selectExistingCustomer(customer),
                 );
               }).toList(),
             ),
@@ -92,19 +92,25 @@ class _TransactionFormPopupState extends State<TransactionFormPopup> {
     _overlayEntry = null;
   }
 
-  void _selectExistingCustomer(Map<String, dynamic> data) {
+  void _selectExistingCustomer(Map<String, dynamic> customer) {
     setState(() {
-      _nameController.text = data['name'];
-      _selectedType = data['vehicle_type'];
-      _plateController.text = data['plate_number'] ?? '';
-      _price = data['price'];
-      _isExistingCustomer = true;
+      _selectedCustomerId = customer['id'];
+      _nameController.text = customer['name'];
+      _selectedType = customer['vehicle_type'];
+      _plateController.text = customer['plate_number'] ?? '';
+      _updatePrice(customer['vehicle_type']);
     });
 
     _removeOverlay();
   }
 
-
+  @override
+  void dispose() {
+    _removeOverlay();
+    _nameController.dispose();
+    _plateController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -155,7 +161,7 @@ class _TransactionFormPopupState extends State<TransactionFormPopup> {
                     border: OutlineInputBorder(),
                   ),
                   onChanged: (value) {
-                    _isExistingCustomer = false;
+                    _selectedCustomerId = null;
                     _searchName(value);
                   },
                   validator: (value) =>
@@ -168,11 +174,11 @@ class _TransactionFormPopupState extends State<TransactionFormPopup> {
               // ================= Status Customer =================
               Center(
                 child: Text(
-                  _isExistingCustomer ? 'Data Lama (Existing)' : 'Data Baru',
+                  _selectedCustomerId != null ? 'Pelanggan Lama' : 'Pelanggan Baru',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
-                    color: _isExistingCustomer ? Colors.green : Colors.orange,
+                    color: _selectedCustomerId != null ? Colors.green : Colors.orange,
                   ),
                 ),
               ),
@@ -182,10 +188,10 @@ class _TransactionFormPopupState extends State<TransactionFormPopup> {
               // ================= TIPE =================
               DropdownButtonFormField<String>(
                 value: _selectedType,
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   labelText: 'Tipe Kendaraan',
-                  prefixIcon: const Icon(Icons.local_shipping),
-                  border: const OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.local_shipping),
+                  border: OutlineInputBorder(),
                 ),
                 items: const [
                   DropdownMenuItem(
@@ -199,8 +205,10 @@ class _TransactionFormPopupState extends State<TransactionFormPopup> {
                 ],
                 onChanged: (value) {
                   if (value != null) {
-                    _selectedType = value;
-                    _updatePrice(value);
+                    setState(() {
+                      _selectedType = value;
+                      _updatePrice(value);
+                    });
                   }
                 },
                 validator: (value) =>
@@ -252,7 +260,7 @@ class _TransactionFormPopupState extends State<TransactionFormPopup> {
 
               const SizedBox(height: 12),
 
-              Text(
+              const Text(
                 'Status Pembayaran',
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
@@ -284,7 +292,6 @@ class _TransactionFormPopupState extends State<TransactionFormPopup> {
                 ],
               ),
 
-
               const SizedBox(height: 20),
 
               // ================= ACTION =================
@@ -307,18 +314,44 @@ class _TransactionFormPopupState extends State<TransactionFormPopup> {
                     child: ElevatedButton(
                       onPressed: () async {
                         if (_formKey.currentState!.validate()) {
-                          final id = await DatabaseHelper.instance.insertTransaction({
-                            'name': _nameController.text,
-                            'vehicle_type': _selectedType,
-                            'plate_number': _plateController.text,
+                          // Cek apakah customer sudah ada
+                          final existingCustomer = 
+                              await DatabaseHelper.instance.findCustomerByName(_nameController.text);
+                          
+                          int customerId;
+                          
+                          if (existingCustomer != null) {
+                            // Gunakan customer yang sudah ada
+                            customerId = existingCustomer['id'];
+                          } else {
+                            // Insert customer baru
+                            final newCustomerId = await DatabaseHelper.instance.insertCustomer({
+                              'name': _nameController.text,
+                              'vehicle_type': _selectedType!,
+                              'plate_number': _plateController.text,
+                              'created_at': DateTime.now().toIso8601String(),
+                            });
+                            
+                            if (newCustomerId == -1) {
+                              // Jika terjadi duplikat (nama sudah ada), cari lagi
+                              final customer = await DatabaseHelper.instance
+                                  .findCustomerByName(_nameController.text);
+                              customerId = customer!['id'];
+                            } else {
+                              customerId = newCustomerId;
+                            }
+                          }
+
+                          // Insert transaksi
+                          final transactionId = await DatabaseHelper.instance.insertTransaction({
+                            'customer_id': customerId,
                             'price': _price,
                             'status': _status,
                             'created_at': DateTime.now().toIso8601String(),
                           });
 
-                          print('TRANSAKSI MASUK, ID: $id');
+                          print('TRANSAKSI MASUK, ID: $transactionId, CUSTOMER_ID: $customerId');
 
-                          // 👉 kirim sinyal sukses
                           Navigator.pop(context, true);
                         }
                       },
