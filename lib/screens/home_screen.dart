@@ -1,9 +1,30 @@
 import 'package:flutter/material.dart';
+import '../database/database_helper.dart';
+import 'customer_list_screen.dart';
 import 'transaction_form_popup.dart';
 import 'transaction_list_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  late Future<Map<String, int>> _summaryFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _summaryFuture = DatabaseHelper.instance.getTodaySummary();
+  }
+
+  void _refreshSummary() {
+    setState(() {
+      _summaryFuture = DatabaseHelper.instance.getTodaySummary();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -14,39 +35,53 @@ class HomeScreen extends StatelessWidget {
         backgroundColor: Colors.blue,
         title: const Text(
           'Manajemen Air Tanah',
-          style: TextStyle(fontWeight: FontWeight.bold),
+          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
         ),
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildHeader(),
-            const SizedBox(height: 16),
+      body: FutureBuilder<Map<String, int>>(
+        future: _summaryFuture,
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-            _buildSummaryCard(),
-            const SizedBox(height: 16),
+          final data = snapshot.data!;
 
-            _buildOperationalInfo(),
-            const SizedBox(height: 16),
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildHeader(),
+                const SizedBox(height: 16),
 
-            _buildDailyInsight(),
-            const SizedBox(height: 24),
+                _buildSummaryCard(
+                  transaksi: data['total_transaksi']!,
+                  pendapatan: data['total_pendapatan']!,
+                ),
+                const SizedBox(height: 16),
 
-            const Text(
-              'Menu Utama',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+                _buildOperationalInfo(
+                  tangki: data['total_tangki']!,
+                  box: data['total_box']!,
+                ),
+                const SizedBox(height: 16),
+
+                _buildDailyInsight(data['total_transaksi']!),
+                const SizedBox(height: 24),
+
+                const Text(
+                  'Menu Utama',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+
+                _buildMenuGrid(context),
+              ],
             ),
-            const SizedBox(height: 12),
-
-            _buildMenuGrid(context),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -74,9 +109,7 @@ class HomeScreen extends StatelessWidget {
           SizedBox(height: 4),
           Text(
             'Kelola penjualan air tanah dengan mudah',
-            style: TextStyle(
-              color: Colors.white70,
-            ),
+            style: TextStyle(color: Colors.white70),
           ),
         ],
       ),
@@ -84,13 +117,16 @@ class HomeScreen extends StatelessWidget {
   }
 
   // ================= SUMMARY =================
-  Widget _buildSummaryCard() {
+  Widget _buildSummaryCard({
+    required int transaksi,
+    required int pendapatan,
+  }) {
     return Row(
       children: [
         Expanded(
           child: _summaryItem(
             title: 'Transaksi Hari Ini',
-            value: '0',
+            value: transaksi.toString(),
             icon: Icons.local_shipping,
             color: Colors.green,
           ),
@@ -99,7 +135,7 @@ class HomeScreen extends StatelessWidget {
         Expanded(
           child: _summaryItem(
             title: 'Pendapatan Hari Ini',
-            value: 'Rp 0',
+            value: 'Rp $pendapatan',
             icon: Icons.attach_money,
             color: Colors.orange,
           ),
@@ -109,13 +145,16 @@ class HomeScreen extends StatelessWidget {
   }
 
   // ================= OPERASIONAL =================
-  Widget _buildOperationalInfo() {
+  Widget _buildOperationalInfo({
+    required int tangki,
+    required int box,
+  }) {
     return Row(
       children: [
         Expanded(
           child: _summaryItem(
             title: 'Truck Tangki',
-            value: '0',
+            value: tangki.toString(),
             icon: Icons.water,
             color: Colors.blueAccent,
           ),
@@ -124,7 +163,7 @@ class HomeScreen extends StatelessWidget {
         Expanded(
           child: _summaryItem(
             title: 'Box',
-            value: '0',
+            value: box.toString(),
             icon: Icons.inventory_2,
             color: Colors.purple,
           ),
@@ -134,7 +173,7 @@ class HomeScreen extends StatelessWidget {
   }
 
   // ================= INSIGHT =================
-  Widget _buildDailyInsight() {
+  Widget _buildDailyInsight(int totalTransaksi) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -142,7 +181,7 @@ class HomeScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -150,11 +189,16 @@ class HomeScreen extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.info_outline, color: Colors.blue),
+          Icon(
+            totalTransaksi > 0 ? Icons.check_circle : Icons.info_outline,
+            color: totalTransaksi > 0 ? Colors.green : Colors.blue,
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              'Belum ada transaksi hari ini. Tambahkan transaksi untuk mulai mencatat penjualan.',
+              totalTransaksi > 0
+                  ? 'Hari ini sudah ada transaksi. Teruskan operasional 👍'
+                  : 'Belum ada transaksi hari ini. Tambahkan transaksi untuk mulai mencatat.',
               style: TextStyle(color: Colors.grey[700]),
             ),
           ),
@@ -176,24 +220,29 @@ class HomeScreen extends StatelessWidget {
           icon: Icons.add_circle,
           label: 'Tambah\nTransaksi',
           color: Colors.blue,
-          onTap: () {
-            showDialog(
+          onTap: () async {
+            final result = await showDialog(
               context: context,
-              builder: (context) => const TransactionFormPopup(),
+              builder: (_) => const TransactionFormPopup(),
             );
+
+            if (result == true) {
+              _refreshSummary();
+            }
           },
         ),
         _menuItem(
           icon: Icons.receipt_long,
           label: 'Data\nTransaksi',
           color: Colors.green,
-          onTap: () {
-            Navigator.push(
+          onTap: () async {
+            await Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (_) => const TransactionListScreen(),
               ),
             );
+            _refreshSummary();
           },
         ),
         _menuItem(
@@ -226,7 +275,7 @@ class HomeScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           )
@@ -272,7 +321,7 @@ class HomeScreen extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 10,
               offset: const Offset(0, 4),
             )
@@ -283,7 +332,7 @@ class HomeScreen extends StatelessWidget {
           children: [
             CircleAvatar(
               radius: 28,
-              backgroundColor: color.withOpacity(0.1),
+              backgroundColor: color.withValues(alpha: 0.1),
               child: Icon(icon, color: color, size: 30),
             ),
             const SizedBox(height: 12),

@@ -165,14 +165,17 @@ class _TransactionFormPopupState extends State<TransactionFormPopup> {
 
               const SizedBox(height: 6),
 
-                  Text(
-                    _isExistingCustomer ? 'Data Lama (Existing)' : 'Data Baru',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: _isExistingCustomer ? Colors.green : Colors.orange,
-                    ),
+              // ================= Status Customer =================
+              Center(
+                child: Text(
+                  _isExistingCustomer ? 'Data Lama (Existing)' : 'Data Baru',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: _isExistingCustomer ? Colors.green : Colors.orange,
                   ),
+                ),
+              ),
 
               const SizedBox(height: 12),
 
