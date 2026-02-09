@@ -3,6 +3,7 @@ import '../database/database_helper.dart';
 import 'customer_list_screen.dart';
 import 'transaction_form_popup.dart';
 import 'transaction_list_screen.dart';
+import 'vehicle_type_list_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -259,11 +260,19 @@ class _HomeScreenState extends State<HomeScreen> {
             _refreshSummary();
           },
         ),
-        _menuItem(
-          icon: Icons.settings,
-          label: 'Harga\nAir',
+          _menuItem(
+          icon: Icons.local_shipping,
+          label: 'Tipe\nKendaraan',
           color: Colors.purple,
-          onTap: () {},
+          onTap: () async {
+            await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const VehicleTypeListScreen(),
+              ),
+            );
+            _refreshSummary();
+          },
         ),
       ],
     );

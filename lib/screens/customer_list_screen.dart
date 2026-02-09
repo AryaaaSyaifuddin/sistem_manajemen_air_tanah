@@ -287,7 +287,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
                   borderSide: BorderSide.none,
-                ),
+                ),  
               ),
               onChanged: (value) {
                 _searchKeyword = value;
